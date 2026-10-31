@@ -1,0 +1,124 @@
+name: Android Maestro UI tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maestro:
+    name: Android Maestro suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: 'true'
+      MAESTRO_DISABLE_UPDATE_CHECK: 'true'
+      MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+        with:
+          global-json-file: global.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android --skip-manifest-update
+
+      - name: Install required Android SDK components
+        run: >-
+          dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj
+          -t:InstallAndroidDependencies
+          --framework net10.0-android
+          --configuration Debug
+          -p:RuntimeIdentifier=android-x64
+          "-p:AndroidSdkDirectory=$ANDROID_HOME"
+          "-p:JavaSdkDirectory=$JAVA_HOME"
+          -p:AcceptAndroidSdkLicenses=true
+
+      - name: Install Maestro 2.11.0
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/maestro.zip"
+          curl --fail --location --retry 3 \
+            https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.11.0/maestro.zip \
+            --output "$archive"
+          printf '5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a  %s\n' "$archive" | sha256sum --check
+          unzip -q "$archive" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/maestro/bin/maestro"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
+
+      - name: Build fresh emulator APK
+        run: |
+          set -euo pipefail
+          build_dir="$RUNNER_TEMP/maestro-apk"
+          results_dir="$RUNNER_TEMP/maestro-results"
+          mkdir -p "$build_dir" "$results_dir"
+          app_id=$(dotnet msbuild src/MaestroMauiDemo/MaestroMauiDemo.csproj \
+            -nologo -verbosity:quiet -p:TargetFramework=net10.0-android \
+            -p:Configuration=Debug -p:RuntimeIdentifier=android-x64 -getProperty:ApplicationId)
+          if [[ ! "$app_id" =~ ^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$ ]]; then
+            echo "::error::Could not evaluate a valid Android ApplicationId: $app_id"
+            exit 1
+          fi
+          dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj \
+            --framework net10.0-android --configuration Debug \
+            -p:RuntimeIdentifier=android-x64 -p:AndroidPackageFormats=apk \
+            -p:EmbedAssembliesIntoApk=true "-p:OutputPath=$build_dir/" \
+            "-p:AndroidSdkDirectory=$ANDROID_HOME" "-p:JavaSdkDirectory=$JAVA_HOME" \
+            --no-restore
+          find "$build_dir" -type f -name '*-Signed.apk' -print0 > "$RUNNER_TEMP/maestro-apks"
+          mapfile -d '' -t apks < "$RUNNER_TEMP/maestro-apks"
+          if [[ "${#apks[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one fresh signed APK; found ${#apks[@]}."
+            exit 1
+          fi
+          printf 'APP_ID=%s\nAPK_PATH=%s\n' "$app_id" "${apks[0]}" >> "$GITHUB_ENV"
+          printf 'Maestro 2.11.0\nAndroid API 35 / x86_64\nAPP_ID=%s\n' "$app_id" > "$results_dir/run-info.txt"
+
+      - name: Enable emulator hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run all five Maestro flows
+        id: ui-tests
+        timeout-minutes: 20
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-port: 5554
+          emulator-boot-timeout: 300
+          disable-animations: true
+          disable-spellchecker: true
+          enable-hw-keyboard: false
+          script: |
+            adb -s "$ANDROID_SERIAL" install -r -t "$APK_PATH"
+            maestro --device="$ANDROID_SERIAL" --platform=android test --env "APP_ID=$APP_ID" --format JUNIT --output "$RUNNER_TEMP/maestro-results/report.xml" --test-output-dir "$RUNNER_TEMP/maestro-results/artifacts" tests/MaestroMauiDemo.UITests; test_code=$?; if ! adb -s "$ANDROID_SERIAL" logcat -d > "$RUNNER_TEMP/maestro-results/logcat.txt"; then echo "::warning::Could not collect emulator logcat."; fi; exit "$test_code"
+
+      - name: Upload Maestro reports and diagnostics
+        if: ${{ !cancelled() && steps.ui-tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: maestro-ui-results
+          path: ${{ runner.temp }}/maestro-results/
+          if-no-files-found: error
+          retention-days: 7
