@@ -1,4 +1,4 @@
-# Local Maestro UI tests
+# Maestro UI tests
 
 [Maestro](https://docs.maestro.dev/maestro-cli) drives an installed application
 through its native UI and accessibility hierarchy. These black-box tests exercise
@@ -8,6 +8,36 @@ or creating another .NET test project.
 The five YAML flows are shared by Android and iOS. Optional runners provide
 PowerShell on Windows/Android and native Bash on macOS/iOS; the flows also run
 directly with Maestro. This workspace contains no CI/CD configuration.
+The repository's [Android PR workflow](../../.github/workflows/android-ci.yml)
+runs Core unit tests and builds the Android app only; it does not execute these
+Maestro flows or start an emulator.
+The separate [manual Android UI workflow](../../.github/workflows/android-ui-tests.yml)
+does run all five flows on a GitHub-hosted Android emulator.
+
+## Manual GitHub Actions run
+
+The Android Maestro workflow uses only `workflow_dispatch`: no PR, push, or
+scheduled triggers. After the workflow is available on the default branch
+(`main`), select **Actions > Android Maestro UI tests > Run workflow**, choose
+the branch, and start the run.
+
+It installs checksum-verified Maestro 2.11.0 and builds a fresh, signed
+`android-x64` Debug APK with `EmbedAssembliesIntoApk=true`. It evaluates `APP_ID`
+from the project and installs the APK on an API-35 Google APIs x86_64 emulator
+(Pixel 5 profile). All five existing flows run unchanged; no local interactive
+runner is invoked and no extra test project or app package is added.
+
+`maestro-ui-results` contains the explicit JUnit report, Maestro artifacts,
+emulator logcat, and run metadata. It is uploaded even when UI tests fail, and
+retained for seven days. Tests retain their failure result if optional logcat
+collection fails; that diagnostic failure is reported as a warning.
+
+The emulator action handles shutdown. The CI-only KVM permission step affects
+the temporary Ubuntu runner, not local machines. The job has a 45-minute timeout,
+the emulator/test step has a 20-minute timeout, and boot is limited to 300 seconds.
+No Maestro Cloud or iOS tests run. API-35 and native Linux/GitHub-hosted execution
+still need their first real manual run; the local Windows verification below
+used API 33 and is not a substitute.
 
 ## Prerequisites and native installation
 
@@ -413,6 +443,11 @@ Native Maestro 2.11.0 on Windows, an Android API-33 x86_64 emulator, and .NET SD
   The temporary fixtures are not part of this workspace.
 - Direct CLI smoke-tag selection produced a local JUnit report with one passing
   test and zero failures.
+- The manual workflow passed `actionlint`, syntax checks of all six shell blocks,
+  and nine isolated APK-selection/build/UI/diagnostic failure cases. A fresh
+  native API-33 run produced a JUnit report with five passing cases and no
+  failures, errors, or skipped cases; the local runner shut down its emulator.
+  These checks do not exercise GitHub-hosted KVM or the Linux toolchain.
 - All 69 existing xUnit cases still passed; their project and source are unchanged.
 
 One Android tooling warning (`XA0033`) occurred when the installed JDK reported
