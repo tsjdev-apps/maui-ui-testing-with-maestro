@@ -4,8 +4,8 @@
 It is the starting point for a blog series about automating .NET MAUI applications
 with Maestro on Android and iOS.
 
-The repository contains the application and plain .NET unit tests. There are no
-Maestro flows, UI tests, integration tests, or CI/CD workflows yet.
+The repository contains the application, plain .NET unit tests, and local Maestro
+UI flows shared by Android and iOS. No CI/CD workflows are included.
 
 ## Features
 
@@ -29,6 +29,7 @@ backend, database, authentication, telemetry, or localization.
 - Shell navigation and the standard .NET MAUI dependency injection container
 - NuGet Central Package Management
 - xUnit for framework-independent unit tests
+- Maestro CLI for native black-box UI testing
 
 The SDK is pinned to **10.0.403** in [global.json](global.json). Compatible patches
 within the same SDK feature band are allowed; preview SDKs are not selected.
@@ -174,11 +175,18 @@ dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj -t:Run -f net10.0-ios -c
 |       |-- Services/
 |       `-- ViewModels/
 `-- tests/
-    `-- MaestroMauiDemo.UnitTests/
-        |-- MaestroMauiDemo.UnitTests.csproj
-        |-- Services/
-        |-- ViewModels/
-        `-- TestDoubles/
+    |-- MaestroMauiDemo.UnitTests/
+    |   |-- MaestroMauiDemo.UnitTests.csproj
+    |   |-- Services/
+    |   |-- ViewModels/
+    |   `-- TestDoubles/
+    `-- MaestroMauiDemo.UITests/
+        |-- config.yaml
+        |-- README.md
+        |-- flows/
+        `-- scripts/
+            |-- run-android.ps1
+            `-- run-ios.sh
 ```
 
 - [MaestroMauiDemo.Core](src/MaestroMauiDemo.Core/) is a `net10.0` class library
@@ -213,7 +221,7 @@ dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj -t:Run -f net10.0-ios -c
 Keep one class, record, struct, enum, or interface per C# file. Use English naming
 and visible text. Editor conventions are defined in [.editorconfig](.editorconfig).
 
-## Accessibility and future automation
+## Accessibility and automation
 
 Interactive controls have stable `AutomationId` values separate from their
 user-facing labels and semantic descriptions:
@@ -231,14 +239,14 @@ user-facing labels and semantic descriptions:
 | Empty state | `EmptyStateLabel` |
 | Validation message | `ValidationMessageLabel` |
 
-Task rows share the same control IDs; a future automation flow should scope a
-completion or delete action to the intended task row. Accessibility descriptions
+Task rows share the same control IDs; Maestro flows combine the completion and
+delete IDs with task-specific accessibility descriptions. Accessibility descriptions
 include the task title, while automation IDs do not depend on visible text.
 Buttons and checkboxes have a minimum 48-unit touch target, task titles wrap, and
 content width is bounded on larger screens.
 
-No Maestro-specific code or dependencies are present. Maestro examples for
-Android and iOS will be added in later steps.
+No Maestro-specific application code or package dependencies are present.
+The external CLI uses the existing native accessibility surface.
 
 ## Unit tests
 
@@ -276,6 +284,60 @@ dispatchers, native UI controls, or special framework properties. The root
 solution command still restores and builds the application's platform targets,
 so it uses the app prerequisites.
 
+## Maestro UI tests
+
+[MaestroMauiDemo.UITests](tests/MaestroMauiDemo.UITests/README.md) contains five
+local Maestro CLI flows for startup, adding, title validation, completion, and
+deletion. The YAML workspace is shared by Android and iOS; it is not a .NET
+project and adds no application or unit-test dependencies.
+
+With native Maestro and the Android prerequisites configured, use the Windows
+PowerShell helper:
+
+```powershell
+.\tests\MaestroMauiDemo.UITests\scripts\run-android.ps1
+```
+
+This starts an existing AVD if needed, builds Android Debug, installs a fresh
+signed APK, and runs all five flows. Several available AVDs produce an interactive
+selection; `-AvdName` selects one directly. The helper waits for boot and shuts
+down only an emulator it started itself, leaving pre-existing emulators running.
+`-Flow smoke.yaml` selects one flow; `-SkipBuild` skips both build and installation.
+
+On macOS, with compatible Xcode/.NET MAUI tooling, Java 17+ with a valid
+`JAVA_HOME`, and native Maestro configured, use the native Bash helper:
+
+```bash
+bash tests/MaestroMauiDemo.UITests/scripts/run-ios.sh
+```
+
+`--device-id` selects a simulator directly, `--flow smoke.yaml` selects one flow,
+and `--skip-build` skips both build and installation; `--help` lists the options.
+Several available iOS Simulators produce a numbered selection; one is selected
+automatically. The helper chooses the Apple Silicon or Intel simulator build,
+including ARM64 when the shell runs through Rosetta, and waits up to 180 seconds
+for boot before building/installing a fresh iOS Simulator Debug app and running
+the shared flows.
+
+It reuses already booted/booting simulators and shuts down only a simulator it
+booted itself, including on failure or a handled interrupt. Earlier native error
+codes are preserved if cleanup also fails. Boot logs and fresh build outputs
+remain in ignored `TestResults`; no simulator is created or global tool
+configuration changed. The iOS runner is prepared but has not been executed on
+a Mac.
+
+The CLI can also run directly against an already installed app:
+
+```powershell
+maestro --device=emulator-5554 test --env APP_ID=de.tsjdevapps.maestromauidemo `
+    --test-output-dir tests\MaestroMauiDemo.UITests\TestResults `
+    tests\MaestroMauiDemo.UITests
+```
+
+See the [UI-test guide](tests/MaestroMauiDemo.UITests/README.md) for native
+installation, device selection, manual Android and macOS/iOS Simulator commands,
+state isolation, selectors, and troubleshooting. No WSL or CI/CD is required.
+
 ## Verification
 
 Validated on Windows with .NET SDK 10.0.403:
@@ -292,9 +354,30 @@ Validated on Windows with .NET SDK 10.0.403:
   form after canceling, blank-title validation, trimming and saving, completion
   toggling, deletion, and the accessible empty state and recovery from it.
 
-Android device/emulator behavior, native Apple packaging/signing, and Apple
-simulator/device behavior have not been validated in this environment.
-No UI/integration tests, emulator setup, or workflow files are included.
+- Native Maestro 2.11.0 passed all five Android flows on an API-33 x86_64 emulator,
+  both as a suite and independently in a different order.
+- The PowerShell runner passed parsing, `-SkipBuild` execution, and default
+  build/install/suite execution from outside the repository. Its explicit Java
+  build configuration produced one unsuppressed tooling warning (`XA0033`) for
+  the installed JDK's five-component version; the APK and tests succeeded.
+- Interactive automatic AVD startup passed all five flows and shut down only the
+  owned emulator. Direct `-AvdName` startup and reuse of a named running emulator
+  also passed; the reused emulator was left running. Thirty isolated fixture
+  cases checked startup/selection failures, the boot deadline, and cleanup with
+  preserved native error codes.
+- The iOS Bash runner passed native Git Bash syntax/help/Windows-host checks and
+  39 isolated CLI fixture cases covering selection, simulator reuse and owned
+  shutdown, architecture selection, build/install checks, and native failures.
+  The 180-second boot deadline was exercised with a real wait and monitor
+  cleanup; the complete simulated timeout run took 183 seconds.
+- The runner's actual inline simulator JSON parser passed 16 local checks with
+  Foundation stubs. Shell scripts use LF line endings enforced by repository
+  attributes. These checks do not execute the native macOS Objective-C bridge,
+  Xcode, or an iOS Simulator.
+
+Native Apple packaging/signing and Apple simulator/device behavior have not been
+validated in this environment. Shared iOS flows are provided but have not been
+executed on a simulator. No AVD provisioning or workflow files are included.
 
 ## License
 

@@ -66,6 +66,9 @@ Generated\ Files/
 [Bb]uild[Ll]og.*
 *.trx
 
+# Local Maestro artifacts and isolated Android APK builds
+tests/MaestroMauiDemo.UITests/TestResults/
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
