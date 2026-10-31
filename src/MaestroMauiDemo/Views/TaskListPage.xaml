@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="MaestroMauiDemo.Views.TaskListPage"
+    x:Name="TaskListRoot"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:models="clr-namespace:MaestroMauiDemo.Models"
+    xmlns:viewModels="clr-namespace:MaestroMauiDemo.ViewModels"
+    xmlns:views="clr-namespace:MaestroMauiDemo.Views"
+    x:DataType="viewModels:TaskListViewModel"
+    Title="Tasks"
+    Appearing="OnPageAppearing">
+    <Grid
+        Padding="{StaticResource PagePadding}"
+        IsEnabled="{Binding IsNotBusy}"
+        MaximumWidthRequest="{StaticResource ContentMaxWidth}"
+        RowDefinitions="Auto,*,Auto"
+        RowSpacing="{StaticResource SectionSpacing}">
+        <VerticalStackLayout Spacing="{StaticResource SmallSpacing}">
+            <Label Text="MAUI Tasks" Style="{StaticResource HeadingLabel}" SemanticProperties.HeadingLevel="Level1" />
+            <Label Text="A little progress, one task at a time." Style="{StaticResource SecondaryLabel}" />
+        </VerticalStackLayout>
+
+        <Grid Grid.Row="1">
+            <CollectionView
+                AutomationId="TaskList"
+                ItemsSource="{Binding Items}"
+                SelectionMode="None">
+                <CollectionView.Triggers>
+                    <DataTrigger TargetType="CollectionView" Binding="{Binding Items.Count}" Value="0">
+                        <Setter Property="IsVisible" Value="False" />
+                    </DataTrigger>
+                </CollectionView.Triggers>
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="12" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:TodoItem">
+                        <Border Style="{StaticResource TaskCard}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <CheckBox
+                                    AutomationId="CompleteTaskCheckBox"
+                                    IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                    CheckedChanged="OnCompletionChanged"
+                                    VerticalOptions="Center"
+                                    SemanticProperties.Description="{Binding Title, StringFormat='Completion for {0}'}"
+                                    SemanticProperties.Hint="Check to complete this task; uncheck to mark it as to do." />
+                                <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                                    <Label AutomationId="TaskTitleLabel" Text="{Binding Title}" FontFamily="OpenSansSemibold">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsCompleted}" Value="True">
+                                                <Setter Property="TextDecorations" Value="Strikethrough" />
+                                                <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource SecondaryTextLight}, Dark={StaticResource SecondaryTextDark}}" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                    <Label Text="To do" Style="{StaticResource SecondaryLabel}" FontSize="13">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsCompleted}" Value="True">
+                                                <Setter Property="Text" Value="Completed" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </VerticalStackLayout>
+                                <Button
+                                    Grid.Column="2"
+                                    AutomationId="DeleteTaskButton"
+                                    Text="Delete"
+                                    Style="{StaticResource DeleteButton}"
+                                    VerticalOptions="Center"
+                                    Command="{Binding ViewModel.DeleteCommand, Source={x:Reference TaskListRoot}, x:DataType=views:TaskListPage}"
+                                    CommandParameter="{Binding .}"
+                                    SemanticProperties.Description="{Binding Title, StringFormat='Delete task: {0}'}" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+            <VerticalStackLayout Padding="24" Spacing="12" VerticalOptions="Center" IsVisible="False">
+                <VerticalStackLayout.Triggers>
+                    <DataTrigger TargetType="VerticalStackLayout" Binding="{Binding Items.Count}" Value="0">
+                        <Setter Property="IsVisible" Value="True" />
+                    </DataTrigger>
+                </VerticalStackLayout.Triggers>
+                <Image Source="checklist.svg" HeightRequest="64" WidthRequest="64" />
+                <Label
+                    AutomationId="EmptyStateLabel"
+                    Text="No tasks yet"
+                    HorizontalTextAlignment="Center"
+                    Style="{StaticResource SectionLabel}" />
+                <Label
+                    Text="Add your first task to get started."
+                    HorizontalTextAlignment="Center"
+                    Style="{StaticResource SecondaryLabel}" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <Button
+            Grid.Row="2"
+            AutomationId="AddTaskButton"
+            Text="Add task"
+            Command="{Binding AddTaskCommand}"
+            SemanticProperties.Hint="Opens the form for a new task." />
+    </Grid>
+</ContentPage>
