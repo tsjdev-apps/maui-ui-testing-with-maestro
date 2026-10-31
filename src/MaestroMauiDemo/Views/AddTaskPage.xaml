@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="MaestroMauiDemo.Views.AddTaskPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:viewModels="clr-namespace:MaestroMauiDemo.ViewModels"
+    x:DataType="viewModels:AddTaskViewModel"
+    Title="Add task">
+    <ScrollView>
+        <VerticalStackLayout
+            Padding="{StaticResource PagePadding}"
+            IsEnabled="{Binding IsNotBusy}"
+            MaximumWidthRequest="{StaticResource ContentMaxWidth}"
+            Spacing="{StaticResource SectionSpacing}">
+            <VerticalStackLayout Spacing="{StaticResource SmallSpacing}">
+                <Label Text="A new task" Style="{StaticResource HeadingLabel}" SemanticProperties.HeadingLevel="Level1" />
+                <Label Text="Give it a name. You can complete it whenever you're ready." Style="{StaticResource SecondaryLabel}" />
+            </VerticalStackLayout>
+
+            <VerticalStackLayout Spacing="{StaticResource SmallSpacing}">
+                <Label Text="Task title" FontFamily="OpenSansSemibold" />
+                <Entry
+                    AutomationId="TaskTitleEntry"
+                    Text="{Binding TaskTitle}"
+                    Placeholder="What would you like to do?"
+                    ClearButtonVisibility="WhileEditing"
+                    ReturnType="Done"
+                    ReturnCommand="{Binding SaveCommand}"
+                    SemanticProperties.Description="Task title"
+                    SemanticProperties.Hint="Required. Enter a name for your new task." />
+                <Label
+                    AutomationId="ValidationMessageLabel"
+                    Text="{Binding ValidationMessage}"
+                    IsVisible="{Binding HasValidationMessage}"
+                    Style="{StaticResource ValidationLabel}" />
+            </VerticalStackLayout>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Button
+                    AutomationId="SaveTaskButton"
+                    Text="Save task"
+                    Command="{Binding SaveCommand}"
+                    SemanticProperties.Hint="Saves this task and returns to the task list." />
+                <Button
+                    Grid.Column="1"
+                    AutomationId="CancelTaskButton"
+                    Text="Cancel"
+                    Style="{StaticResource SecondaryButton}"
+                    Command="{Binding CancelCommand}"
+                    SemanticProperties.Hint="Returns to the task list without saving." />
+            </Grid>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
