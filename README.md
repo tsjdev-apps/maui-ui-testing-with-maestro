@@ -4,8 +4,8 @@
 It is the starting point for a blog series about automating .NET MAUI applications
 with Maestro on Android and iOS.
 
-**This initial version contains only the application.** There are no Maestro flows,
-test projects, test infrastructure, or CI/CD workflows yet.
+The repository contains the application and plain .NET unit tests. There are no
+Maestro flows, UI tests, integration tests, or CI/CD workflows yet.
 
 ## Features
 
@@ -28,6 +28,7 @@ backend, database, authentication, telemetry, or localization.
 - CommunityToolkit.Mvvm 8.4.2 for observable properties and asynchronous commands
 - Shell navigation and the standard .NET MAUI dependency injection container
 - NuGet Central Package Management
+- xUnit for framework-independent unit tests
 
 The SDK is pinned to **10.0.403** in [global.json](global.json). Compatible patches
 within the same SDK feature band are allowed; preview SDKs are not selected.
@@ -49,6 +50,9 @@ The application ID is `de.tsjdevapps.maestromauidemo` across platforms. Windows
 development uses an unpackaged application; no signing certificate is needed.
 
 ## Prerequisites
+
+These prerequisites apply to app development. Unit tests only need the .NET 10
+SDK; see [Unit tests](#unit-tests) for the SDK-only command.
 
 - .NET SDK **10.0.403** or a compatible later 10.0.4xx patch.
 - The .NET MAUI workloads for the platforms you intend to build.
@@ -75,16 +79,18 @@ current host and may require elevated permissions. It does not install Xcode or
 set up an Android emulator.
 
 If you only have Windows development tooling installed, you can limit package
-restore to that platform without modifying the project:
+restore for the application to that platform without modifying the project:
 
 ```powershell
-dotnet restore dotnet-maui-maestro-demo.slnx -p:TargetFrameworks=net10.0-windows10.0.19041.0
+dotnet restore src\MaestroMauiDemo\MaestroMauiDemo.csproj -p:TargetFrameworks=net10.0-windows10.0.19041.0
 ```
 
 ## Build
 
 Choose a framework explicitly rather than building every platform on an
 incompatible host.
+The MAUI application targets only platforms with a UI. Its shared Core library
+targets plain `net10.0` and builds automatically through the project reference.
 
 ### Windows
 
@@ -151,28 +157,45 @@ dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj -t:Run -f net10.0-ios -c
 |-- dotnet-maui-maestro-demo.slnx
 |-- LICENSE
 |-- README.md
-`-- src/
-    `-- MaestroMauiDemo/
-        |-- MaestroMauiDemo.csproj
-        |-- App.xaml / App.xaml.cs
-        |-- AppShell.xaml / AppShell.xaml.cs
-        |-- MauiProgram.cs
-        |-- Models/
+|-- src/
+|   |-- MaestroMauiDemo/
+|   |   |-- MaestroMauiDemo.csproj
+|   |   |-- App.xaml / App.xaml.cs
+|   |   |-- AppShell.xaml / AppShell.xaml.cs
+|   |   |-- MauiProgram.cs
+|   |   |-- Services/
+|   |   |-- Views/
+|   |   |-- Resources/
+|   |   |-- Platforms/
+|   |   `-- Properties/
+|   `-- MaestroMauiDemo.Core/
+|       |-- MaestroMauiDemo.Core.csproj
+|       |-- Models/
+|       |-- Services/
+|       `-- ViewModels/
+`-- tests/
+    `-- MaestroMauiDemo.UnitTests/
+        |-- MaestroMauiDemo.UnitTests.csproj
         |-- Services/
         |-- ViewModels/
-        |-- Views/
-        |-- Resources/
-        |-- Platforms/
-        `-- Properties/
+        `-- TestDoubles/
 ```
 
-- [TodoService](src/MaestroMauiDemo/Services/TodoService.cs) owns the seeded task
+- [MaestroMauiDemo.Core](src/MaestroMauiDemo.Core/) is a `net10.0` class library
+  containing the models, task service, navigation contract and routes, and view
+  models. It uses CommunityToolkit.Mvvm, but has no MAUI or platform dependencies.
+  The app and unit-test project each reference Core; Core references neither.
+- [TodoService](src/MaestroMauiDemo.Core/Services/TodoService.cs) owns the seeded task
   collection and validates additions. Its asynchronous API currently returns
   completed tasks without artificial delays.
-- [TodoItem](src/MaestroMauiDemo/Models/TodoItem.cs) has an immutable ID and title,
+- [TodoItem](src/MaestroMauiDemo.Core/Models/TodoItem.cs) has an immutable ID and title,
   with observable completion state managed by the service.
-- [ViewModels](src/MaestroMauiDemo/ViewModels/) coordinate the service, validation,
+- [ViewModels](src/MaestroMauiDemo.Core/ViewModels/) coordinate the service, validation,
   and navigation. The task list reloads when it appears, including after a save.
+  Navigation is injected through
+  [INavigationService](src/MaestroMauiDemo.Core/Services/INavigationService.cs);
+  [ShellNavigationService](src/MaestroMauiDemo/Services/ShellNavigationService.cs)
+  forwards production requests to Shell using the existing routes.
 - [Views](src/MaestroMauiDemo/Views/) use bindings and standard MAUI controls.
   Task-list code-behind only bridges page appearance and checkbox events to
   view-model commands; a checkbox's binding refresh is not treated as user input.
@@ -217,22 +240,61 @@ content width is bounded on larger screens.
 No Maestro-specific code or dependencies are present. Maestro examples for
 Android and iOS will be added in later steps.
 
-## Verification of this initial version
+## Unit tests
+
+[MaestroMauiDemo.UnitTests](tests/MaestroMauiDemo.UnitTests/) targets only `net10.0`
+and references [MaestroMauiDemo.Core](src/MaestroMauiDemo.Core/) directly, not the
+MAUI app. The test dependency graph contains no pages, platform startup code,
+Shell implementation, or MAUI packages. The app no longer needs a special
+library target or conditional source exclusions for testing.
+
+Tests use xUnit with `Microsoft.NET.Test.Sdk` and `xunit.runner.visualstudio`.
+Versions are managed centrally. The test project opts into VSTest rather than
+xUnit's default Microsoft.Testing.Platform integration, preserving the standard
+`dotnet test` workflow. Handwritten service and navigation doubles keep tests
+isolated; no mocking framework or MAUI application host is initialized.
+
+Coverage includes seeded tasks, addition and trimming, invalid titles, unique
+IDs, completion and change notifications, deletion and unknown IDs; list loading
+and refresh; save/cancel validation and navigation; and command/busy-state
+recovery after pending operations and failures.
+
+From the root with the application toolchain installed:
+
+```powershell
+dotnet test
+```
+
+For a machine with only the .NET SDK, run the unit-test project directly:
+
+```powershell
+dotnet test tests\MaestroMauiDemo.UnitTests\MaestroMauiDemo.UnitTests.csproj
+```
+
+This restores and runs the tests without MAUI workloads, emulators, simulators,
+dispatchers, native UI controls, or special framework properties. The root
+solution command still restores and builds the application's platform targets,
+so it uses the app prerequisites.
+
+## Verification
 
 Validated on Windows with .NET SDK 10.0.403:
 
-- NuGet restore completed for the solution, which references only the application.
+- NuGet restore completed for the SLNX solution containing the application,
+  Core library, and unit test project.
 - Windows and Android Debug builds succeeded with zero warnings and zero errors,
   including a build with warnings treated as errors.
 - iOS and Mac Catalyst managed compilation also succeeded with zero warnings and
   zero errors. This is not a substitute for native Apple builds on a Mac.
+- `dotnet test` passed all 69 unit test cases, including a direct test-project run
+  with MAUI workload resolution disabled and no framework overrides.
 - Live Windows checks verified startup, the three seeded tasks, a fresh add-task
   form after canceling, blank-title validation, trimming and saving, completion
   toggling, deletion, and the accessible empty state and recovery from it.
 
 Android device/emulator behavior, native Apple packaging/signing, and Apple
 simulator/device behavior have not been validated in this environment.
-These checks did not add any test projects, scripts, or workflows to the repository.
+No UI/integration tests, emulator setup, or workflow files are included.
 
 ## License
 
