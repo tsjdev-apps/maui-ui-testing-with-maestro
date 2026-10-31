@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace MaestroMauiDemo.ViewModels;
+namespace MaestroMauiDemo.Core.ViewModels;
 
 public abstract partial class ViewModelBase : ObservableObject
 {

@@ -1,6 +1,6 @@
-using MaestroMauiDemo.Models;
+using MaestroMauiDemo.Core.Models;
 
-namespace MaestroMauiDemo.Services;
+namespace MaestroMauiDemo.Core.Services;
 
 public sealed class TodoService : ITodoService
 {

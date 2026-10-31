@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
-using MaestroMauiDemo.Models;
-using MaestroMauiDemo.Services;
+using MaestroMauiDemo.Core.Models;
+using MaestroMauiDemo.Core.Services;
 
-namespace MaestroMauiDemo.ViewModels;
+namespace MaestroMauiDemo.Core.ViewModels;
 
-public sealed partial class TaskListViewModel(ITodoService todoService) : ViewModelBase
+public sealed partial class TaskListViewModel(ITodoService todoService, INavigationService navigationService) : ViewModelBase
 {
     public ObservableCollection<TodoItem> Items { get; } = [];
 
@@ -34,7 +34,7 @@ public sealed partial class TaskListViewModel(ITodoService todoService) : ViewMo
         IsBusy = true;
         try
         {
-            await Shell.Current.GoToAsync(AppShell.AddTaskRoute);
+            await navigationService.GoToAsync(NavigationRoutes.AddTask);
         }
         finally
         {

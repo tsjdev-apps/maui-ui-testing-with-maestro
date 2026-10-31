@@ -1,4 +1,4 @@
-using MaestroMauiDemo.ViewModels;
+using MaestroMauiDemo.Core.ViewModels;
 
 namespace MaestroMauiDemo.Views;
 

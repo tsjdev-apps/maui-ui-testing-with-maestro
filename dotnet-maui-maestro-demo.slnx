@@ -5,6 +5,10 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/src/">
+    <Project Path="src/MaestroMauiDemo.Core/MaestroMauiDemo.Core.csproj" />
     <Project Path="src/MaestroMauiDemo/MaestroMauiDemo.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MaestroMauiDemo.UnitTests/MaestroMauiDemo.UnitTests.csproj" />
   </Folder>
 </Solution>
