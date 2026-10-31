@@ -150,6 +150,10 @@ dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj -t:Run -f net10.0-ios -c
 ```text
 .
 |-- .editorconfig
+|-- .github/
+|   `-- workflows/
+|       |-- android-ci.yml
+|       `-- android-ui-tests.yml
 |-- .gitignore
 |-- Directory.Build.props
 |-- Directory.Packages.props
@@ -284,12 +288,65 @@ dispatchers, native UI controls, or special framework properties. The root
 solution command still restores and builds the application's platform targets,
 so it uses the app prerequisites.
 
+## Pull-request checks for Android
+
+[Android CI](.github/workflows/android-ci.yml) runs on GitHub-hosted Ubuntu 24.04
+for pull requests targeting `main`. Creating, reopening, or updating a PR starts
+the check; newer commits cancel an older run for the same PR.
+
+The `Android build and unit tests` job:
+
+1. Installs the .NET SDK pinned in [global.json](global.json).
+2. Restores and runs the Core unit-test project in Release. These are ordinary
+   .NET tests on the runner, not tests executing on an Android device.
+3. Uploads the VSTest TRX report as `unit-test-results`, also when tests fail.
+   The artifact is retained for seven days.
+4. Sets up Temurin JDK 21 and the MAUI Android workload, installs the Android SDK
+   components required by the project, and builds Android Debug.
+
+Failed tests or a failed build fail the PR check. The job has a 30-minute timeout,
+read-only repository permissions, and official actions referenced by major-version
+tags. The SDK is installed in the runner's temporary directory so workload
+installation does not need administrator privileges.
+
+This workflow does not deploy the app, start an emulator, or run Maestro/iOS/UI
+tests. The first actual GitHub-hosted run must verify the Ubuntu runner/toolchain
+combination after the workflow is committed and pushed.
+
 ## Maestro UI tests
 
 [MaestroMauiDemo.UITests](tests/MaestroMauiDemo.UITests/README.md) contains five
 local Maestro CLI flows for startup, adding, title validation, completion, and
 deletion. The YAML workspace is shared by Android and iOS; it is not a .NET
 project and adds no application or unit-test dependencies.
+
+### Manual GitHub Actions run (Android)
+
+[Android Maestro UI tests](.github/workflows/android-ui-tests.yml) is a separate
+`workflow_dispatch`-only workflow. It never runs automatically on PRs, pushes, or
+a schedule; the Android PR unit-test/build check remains unchanged.
+
+Once the workflow is present on the default branch (`main`), open **Actions**,
+select **Android Maestro UI tests**, choose **Run workflow**, select the branch
+to test, and start the run.
+
+It builds a fresh signed `android-x64` Debug APK with embedded assemblies, starts
+an API-35 Google APIs x86_64 emulator on Ubuntu 24.04, and runs all five existing
+flows with the project-evaluated app ID. Maestro 2.11.0 is pinned to the version
+validated locally; its ZIP checksum is verified. Actions use major-version tags.
+
+Failed tests fail the run. JUnit results, Maestro artifacts, emulator logcat, and
+run metadata are uploaded as `maestro-ui-results`, including after test failures,
+and retained for seven days. The emulator action shuts down its emulator.
+The job timeout is 45 minutes; the emulator/test step is limited to 20 minutes.
+KVM permissions are configured only on the temporary GitHub-hosted runner.
+No Maestro Cloud, unit tests, or iOS tests are executed by this workflow.
+
+The first actual GitHub-hosted run must verify KVM, the API-35 emulator image, and
+the Linux Maestro/toolchain integration. API-35 execution is not yet verified;
+the existing local Windows checks used API 33.
+
+### Local runners
 
 With native Maestro and the Android prerequisites configured, use the Windows
 PowerShell helper:
@@ -350,12 +407,22 @@ Validated on Windows with .NET SDK 10.0.403:
   zero errors. This is not a substitute for native Apple builds on a Mac.
 - `dotnet test` passed all 69 unit test cases, including a direct test-project run
   with MAUI workload resolution disabled and no framework overrides.
+- The Android PR workflow passed `actionlint` and Bash command syntax checks.
+  Its Release unit-test command passed all 69 tests and generated a validated
+  TRX report. Its Android Debug build command succeeded locally with the existing
+  Microsoft JDK 17 and the known `XA0033` version-format warning; this does not
+  validate the GitHub-hosted Ubuntu/Temurin JDK 21 environment.
 - Live Windows checks verified startup, the three seeded tasks, a fresh add-task
   form after canceling, blank-title validation, trimming and saving, completion
   toggling, deletion, and the accessible empty state and recovery from it.
 
 - Native Maestro 2.11.0 passed all five Android flows on an API-33 x86_64 emulator,
   both as a suite and independently in a different order.
+- The manual Android Maestro workflow passed `actionlint`, syntax checks for all
+  six shell blocks, and nine isolated fresh-APK/error-handling cases. A new native
+  Windows run built/installed an embedded-assembly x64 APK and produced five
+  passing JUnit cases with zero failures; its owned emulator was shut down.
+  This does not validate the GitHub-hosted KVM/Linux integration.
 - The PowerShell runner passed parsing, `-SkipBuild` execution, and default
   build/install/suite execution from outside the repository. Its explicit Java
   build configuration produced one unsuppressed tooling warning (`XA0033`) for
@@ -377,7 +444,9 @@ Validated on Windows with .NET SDK 10.0.403:
 
 Native Apple packaging/signing and Apple simulator/device behavior have not been
 validated in this environment. Shared iOS flows are provided but have not been
-executed on a simulator. No AVD provisioning or workflow files are included.
+executed on a simulator. Local runners do not provision AVDs. The Android PR
+workflow covers unit tests and compilation only; the separate Android Maestro
+workflow provisions its CI emulator and runs only when started manually.
 
 ## License
 
