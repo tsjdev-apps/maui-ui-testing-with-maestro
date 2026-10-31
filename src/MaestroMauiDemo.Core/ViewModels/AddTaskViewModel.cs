@@ -1,10 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MaestroMauiDemo.Services;
+using MaestroMauiDemo.Core.Services;
 
-namespace MaestroMauiDemo.ViewModels;
+namespace MaestroMauiDemo.Core.ViewModels;
 
-public sealed partial class AddTaskViewModel(ITodoService todoService) : ViewModelBase
+public sealed partial class AddTaskViewModel(ITodoService todoService, INavigationService navigationService) : ViewModelBase
 {
     [ObservableProperty]
     public partial string TaskTitle { get; set; } = string.Empty;
@@ -30,7 +30,7 @@ public sealed partial class AddTaskViewModel(ITodoService todoService) : ViewMod
         try
         {
             await todoService.AddAsync(TaskTitle.Trim());
-            await Shell.Current.GoToAsync("..");
+            await navigationService.GoBackAsync();
         }
         finally
         {
@@ -44,7 +44,7 @@ public sealed partial class AddTaskViewModel(ITodoService todoService) : ViewMod
         IsBusy = true;
         try
         {
-            await Shell.Current.GoToAsync("..");
+            await navigationService.GoBackAsync();
         }
         finally
         {

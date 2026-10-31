@@ -30,6 +30,6 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Maui.Controls" />
-        <PackageReference Include="CommunityToolkit.Mvvm" />
+        <ProjectReference Include="..\MaestroMauiDemo.Core\MaestroMauiDemo.Core.csproj" />
     </ItemGroup>
 </Project>

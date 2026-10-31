@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace MaestroMauiDemo.Models;
+namespace MaestroMauiDemo.Core.Models;
 
 public sealed class TodoItem(string title) : ObservableObject
 {

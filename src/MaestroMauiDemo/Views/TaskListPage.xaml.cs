@@ -1,5 +1,5 @@
-using MaestroMauiDemo.Models;
-using MaestroMauiDemo.ViewModels;
+using MaestroMauiDemo.Core.Models;
+using MaestroMauiDemo.Core.ViewModels;
 
 namespace MaestroMauiDemo.Views;
 
