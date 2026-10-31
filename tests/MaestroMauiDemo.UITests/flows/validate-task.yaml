@@ -1,0 +1,50 @@
+appId: ${APP_ID}
+name: Reject blank titles and save a valid task
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "TaskList"
+- tapOn:
+    id: "AddTaskButton"
+- assertVisible: "A new task"
+- tapOn:
+    id: "SaveTaskButton"
+- assertVisible:
+    id: "ValidationMessageLabel"
+    text: 'Enter a task title\.'
+- assertVisible:
+    id: "TaskTitleEntry"
+- assertNotVisible:
+    id: "TaskList"
+- tapOn:
+    id: "TaskTitleEntry"
+- inputText: "   "
+- hideKeyboard
+- tapOn:
+    id: "SaveTaskButton"
+- assertVisible:
+    id: "ValidationMessageLabel"
+    text: 'Enter a task title\.'
+- assertVisible:
+    id: "TaskTitleEntry"
+- assertNotVisible:
+    id: "TaskList"
+- tapOn:
+    id: "TaskTitleEntry"
+- eraseText: 3
+- inputText: "Write a validated task"
+- hideKeyboard
+- tapOn:
+    id: "SaveTaskButton"
+- assertVisible:
+    id: "TaskList"
+- assertNotVisible:
+    id: "TaskTitleEntry"
+- scrollUntilVisible:
+    element:
+      id: "TaskTitleLabel"
+      text: "Write a validated task"
+- assertVisible:
+    id: "TaskTitleLabel"
+    text: "Write a validated task"

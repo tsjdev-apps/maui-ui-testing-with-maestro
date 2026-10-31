@@ -1,0 +1,28 @@
+appId: ${APP_ID}
+name: Complete Explore Maestro and restore its to-do state
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "TaskList"
+- assertVisible:
+    id: "TaskTitleLabel"
+    text: "Explore Maestro"
+- assertNotVisible: "Completed"
+- tapOn:
+    id: "CompleteTaskCheckBox"
+    text: "Completion for Explore Maestro"
+- assertVisible: "Completed"
+- assertVisible:
+    id: "TaskTitleLabel"
+    text: "Explore Maestro"
+- tapOn:
+    id: "CompleteTaskCheckBox"
+    text: "Completion for Explore Maestro"
+- assertNotVisible: "Completed"
+- assertVisible:
+    text: "To do"
+    childOf:
+      containsChild:
+        id: "TaskTitleLabel"
+        text: "Explore Maestro"

@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+name: Seeded task list smoke test
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible: "MAUI Tasks"
+- assertVisible:
+    id: "TaskList"
+- assertVisible:
+    id: "TaskTitleLabel"
+    text: 'Learn \.NET MAUI'
+- assertVisible:
+    id: "TaskTitleLabel"
+    text: "Explore Maestro"
+- assertVisible:
+    id: "TaskTitleLabel"
+    text: "Write UI tests"
+- assertVisible:
+    id: "AddTaskButton"
+    enabled: true
