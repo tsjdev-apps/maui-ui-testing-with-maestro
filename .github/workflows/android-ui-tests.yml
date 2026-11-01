@@ -90,6 +90,42 @@ jobs:
           printf 'APP_ID=%s\nAPK_PATH=%s\n' "$app_id" "${apks[0]}" >> "$GITHUB_ENV"
           printf 'Maestro 2.11.0\nAndroid API 35 / x86_64\nAPP_ID=%s\n' "$app_id" > "$results_dir/run-info.txt"
 
+      - name: Reclaim disk space after APK build
+        run: |
+          set -euo pipefail
+          df -h "$HOME"
+          shopt -s nullglob
+          ndk_packages=()
+          for ndk_dir in "$ANDROID_HOME"/ndk/*; do
+            if [[ -d "$ndk_dir" ]]; then
+              ndk_packages+=("ndk;${ndk_dir##*/}")
+            fi
+          done
+          if (( ${#ndk_packages[@]} > 0 )); then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --uninstall "${ndk_packages[@]}"
+          else
+            echo "No installed NDK packages to remove."
+          fi
+          df -h "$HOME"
+
+      - name: Install emulator image and check disk space
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "system-images;android-35;google_apis;x86_64" --channel=0
+          avd_home="$HOME/.android/avd"
+          mkdir -p "$avd_home"
+          df -h "$avd_home"
+          available_kb=$(df -Pk "$avd_home" | awk 'NR == 2 {print $4}')
+          case "$available_kb" in ''|*[!0-9]*)
+            echo "::error::Could not determine free space for the emulator."
+            exit 1
+            ;;
+          esac
+          if [ "$available_kb" -lt 8388608 ]; then
+            echo "::error::API 35 emulator needs at least 8 GiB free in $avd_home; available: ${available_kb} KiB."
+            exit 1
+          fi
+
       - name: Enable emulator hardware acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
