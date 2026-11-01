@@ -7,12 +7,9 @@ or creating another .NET test project.
 
 The five YAML flows are shared by Android and iOS. Optional runners provide
 PowerShell on Windows/Android and native Bash on macOS/iOS; the flows also run
-directly with Maestro. This workspace contains no CI/CD configuration.
-The repository's [Android PR workflow](../../.github/workflows/android-ci.yml)
-runs Core unit tests and builds the Android app only; it does not execute these
-Maestro flows or start an emulator.
-The separate [manual Android UI workflow](../../.github/workflows/android-ui-tests.yml)
-does run all five flows on a GitHub-hosted Android emulator.
+directly with Maestro. The repository has separate PR unit/build checks and
+manually dispatched UI workflows for both Android and iOS. The PR checks do not
+execute Maestro flows or start an emulator/simulator.
 
 ## Manual GitHub Actions run
 
@@ -27,15 +24,6 @@ from the project and installs the APK on an API-35 Google APIs x86_64 emulator
 (Pixel 5 profile). All five existing flows run unchanged; no local interactive
 runner is invoked and no extra test project or app package is added.
 
-Once the APK is built, unused installed Android NDK packages are removed with
-`sdkmanager`; the remaining steps only need the APK, Maestro, ADB, and emulator.
-This cleanup is limited to the temporary hosted runner's NDK packages, not the
-Android SDK as a whole or any local machine. The emulator enforces a minimum
-6-GiB userdata partition plus a 20% free-space reserve. A separate step installs
-the system image and requires at least 8 GiB free in the AVD filesystem before
-the emulator action runs, failing explicitly instead of waiting for a boot
-timeout.
-
 `maestro-ui-results` contains the explicit JUnit report, Maestro artifacts,
 emulator logcat, and run metadata. It is uploaded even when UI tests fail, and
 retained for seven days. Tests retain their failure result if optional logcat
@@ -44,15 +32,37 @@ collection fails; that diagnostic failure is reported as a warning.
 The emulator action handles shutdown. The CI-only KVM permission step affects
 the temporary Ubuntu runner, not local machines. The job has a 45-minute timeout,
 the emulator/test step has a 20-minute timeout, and boot is limited to 300 seconds.
-No Maestro Cloud or iOS tests run. The first hosted API-35 attempt failed before
-boot because the userdata partition required 7,373 MiB with only 3,066 MiB free;
-no Maestro flows executed. A successful hosted rerun is still pending. The local
-Windows verification below used API 33 and is not a substitute.
+No Maestro Cloud or iOS tests run in this Android workflow. The maintainer has
+reported a successful hosted Android pipeline run. The local Windows verification
+below used API 33 and is separate from the hosted API-35 run.
 
-The storage repair passed `actionlint` and 18 isolated CLI-fixture cases for
-NDK-package selection, APK preservation, image-installation failures, invalid
-disk output, and the exact 8-GiB boundary. Native hosted execution remains
-pending.
+### iOS workflows
+
+[iOS CI](../../.github/workflows/ios-ci.yml) runs on PRs to `main`, executes the
+Core unit tests, uploads `ios-unit-test-results`, and builds a Debug
+`iossimulator-arm64` app. It does not start a simulator or run the UI flows.
+
+[iOS Maestro UI tests](../../.github/workflows/ios-ui-tests.yml) runs only via
+`workflow_dispatch`. After the workflow is on `main`, use **Actions > iOS Maestro
+UI tests > Run workflow** and select a branch. It builds and validates a fresh
+simulator `.app`, creates an iPhone 17 with iOS 27.0, and runs the same five
+flows with Maestro 2.12.0. It uses Java 21 and does not require Apple device
+signing, a provisioning profile, or Maestro Cloud.
+
+Both use the Apple Silicon `xcode-27` hosted image and explicitly select
+Xcode 27.1 to match the iOS workload in the pinned .NET 10.0.403 workload set.
+Maestro 2.12.0 adds Xcode 27 support; the Android workflow remains on 2.11.0.
+The current image supplies the iOS 27.0 runtime and iPhone 17 device type.
+If the hosted image or workload set changes, check their compatibility together.
+
+`ios-maestro-ui-results` is retained for seven days and includes the JUnit
+report, Maestro artifacts, run metadata, and simulator screenshot/app logs when
+available. Diagnostics are attempted after test failures and cannot turn a failed
+test into a pass. Cleanup attempts to shut down and delete only its own
+simulator, including on failure or cancellation. The first real hosted iOS run
+is still needed; Windows cannot verify macOS, Xcode, simulator startup, or iOS
+selectors. macOS runner usage can consume more Actions minutes or incur different
+charges than Linux, depending on the repository's billing terms.
 
 ## Prerequisites and native installation
 
@@ -409,11 +419,12 @@ On macOS use `maestro --device="$SIMULATOR_UDID" --platform=ios hierarchy`.
 | Android SDK / ADB missing | Check the SDK environment variable and installed Platform-Tools; the runner does not search unrelated SDK installations. |
 | No AVD / invalid selection | Create an AVD through Android tools if none exists. Select its displayed number or pass its exact name with `-AvdName`. |
 | Emulator not ready | Inspect the emulator window and startup logs in `TestResults`; boot is limited to 180 seconds. Use `-DeviceId` for a particular online emulator. |
-| Hosted emulator reports insufficient userdata space | The manual workflow removes unused NDK packages after building and checks for 8 GiB free before launch. A smaller `disk-size` does not bypass the emulator's minimum 6-GiB partition. Inspect the disk-space output and cleanup errors; repeated `adb: device not found` messages are a consequence of the failed startup. |
+| Hosted emulator reports insufficient userdata space | Inspect free space on the AVD filesystem. A smaller `disk-size` does not bypass the emulator's minimum userdata partition. Repeated `adb: device not found` messages are a consequence of the failed startup. |
 | Startup/shutdown failed | Inspect the reported logs and error code. Only the runner-owned process tree is stopped; existing emulators are left alone. |
 | iOS runner rejects the host | Run it on macOS with native Bash, not on Windows or through WSL. |
 | iOS tooling missing | Check the selected full Xcode installation, compatible MAUI/iOS workload, Java 17+ `JAVA_HOME`, and native Maestro. Configure these manually. |
 | iOS simulator absent / boot timed out | Install a compatible runtime/create a simulator in Xcode. Inspect the reported boot log; unavailable/non-iOS devices are excluded. |
+| Hosted iOS Xcode or simulator unavailable | Check that `xcode-27` still contains Xcode 27.1, the iOS 27.0 runtime, and the iPhone 17 device type. Match the Xcode version to the pinned .NET iOS workload before changing either. |
 | iOS app absent with `--skip-build` | Run the Bash helper without `--skip-build` first for that simulator. |
 | Build failed | Check the pinned .NET SDK, installed Android workload, and its supported Java/Android SDK versions in the actual build output. |
 | App absent or wrong ID | Install it first, avoid `-SkipBuild` on a fresh emulator, and pass the evaluated ID instead of `com.tsjdevapps.maestromauidemo`. |
