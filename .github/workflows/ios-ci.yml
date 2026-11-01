@@ -72,4 +72,5 @@ jobs:
           dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj
           --framework net10.0-ios
           --configuration Debug
+          -p:MauiAppTargetFramework=net10.0-ios
           -p:RuntimeIdentifier=iossimulator-arm64
