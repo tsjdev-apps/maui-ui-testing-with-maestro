@@ -27,6 +27,15 @@ from the project and installs the APK on an API-35 Google APIs x86_64 emulator
 (Pixel 5 profile). All five existing flows run unchanged; no local interactive
 runner is invoked and no extra test project or app package is added.
 
+Once the APK is built, unused installed Android NDK packages are removed with
+`sdkmanager`; the remaining steps only need the APK, Maestro, ADB, and emulator.
+This cleanup is limited to the temporary hosted runner's NDK packages, not the
+Android SDK as a whole or any local machine. The emulator enforces a minimum
+6-GiB userdata partition plus a 20% free-space reserve. A separate step installs
+the system image and requires at least 8 GiB free in the AVD filesystem before
+the emulator action runs, failing explicitly instead of waiting for a boot
+timeout.
+
 `maestro-ui-results` contains the explicit JUnit report, Maestro artifacts,
 emulator logcat, and run metadata. It is uploaded even when UI tests fail, and
 retained for seven days. Tests retain their failure result if optional logcat
@@ -35,9 +44,15 @@ collection fails; that diagnostic failure is reported as a warning.
 The emulator action handles shutdown. The CI-only KVM permission step affects
 the temporary Ubuntu runner, not local machines. The job has a 45-minute timeout,
 the emulator/test step has a 20-minute timeout, and boot is limited to 300 seconds.
-No Maestro Cloud or iOS tests run. API-35 and native Linux/GitHub-hosted execution
-still need their first real manual run; the local Windows verification below
-used API 33 and is not a substitute.
+No Maestro Cloud or iOS tests run. The first hosted API-35 attempt failed before
+boot because the userdata partition required 7,373 MiB with only 3,066 MiB free;
+no Maestro flows executed. A successful hosted rerun is still pending. The local
+Windows verification below used API 33 and is not a substitute.
+
+The storage repair passed `actionlint` and 18 isolated CLI-fixture cases for
+NDK-package selection, APK preservation, image-installation failures, invalid
+disk output, and the exact 8-GiB boundary. Native hosted execution remains
+pending.
 
 ## Prerequisites and native installation
 
@@ -394,6 +409,7 @@ On macOS use `maestro --device="$SIMULATOR_UDID" --platform=ios hierarchy`.
 | Android SDK / ADB missing | Check the SDK environment variable and installed Platform-Tools; the runner does not search unrelated SDK installations. |
 | No AVD / invalid selection | Create an AVD through Android tools if none exists. Select its displayed number or pass its exact name with `-AvdName`. |
 | Emulator not ready | Inspect the emulator window and startup logs in `TestResults`; boot is limited to 180 seconds. Use `-DeviceId` for a particular online emulator. |
+| Hosted emulator reports insufficient userdata space | The manual workflow removes unused NDK packages after building and checks for 8 GiB free before launch. A smaller `disk-size` does not bypass the emulator's minimum 6-GiB partition. Inspect the disk-space output and cleanup errors; repeated `adb: device not found` messages are a consequence of the failed startup. |
 | Startup/shutdown failed | Inspect the reported logs and error code. Only the runner-owned process tree is stopped; existing emulators are left alone. |
 | iOS runner rejects the host | Run it on macOS with native Bash, not on Windows or through WSL. |
 | iOS tooling missing | Check the selected full Xcode installation, compatible MAUI/iOS workload, Java 17+ `JAVA_HOME`, and native Maestro. Configure these manually. |

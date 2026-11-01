@@ -335,6 +335,13 @@ an API-35 Google APIs x86_64 emulator on Ubuntu 24.04, and runs all five existin
 flows with the project-evaluated app ID. Maestro 2.11.0 is pinned to the version
 validated locally; its ZIP checksum is verified. Actions use major-version tags.
 
+After building the APK, it uninstalls unused Android NDK packages with
+`sdkmanager` to reclaim space on the temporary runner. The emulator enforces at
+least a 6-GiB userdata partition plus a 20% disk-space reserve, even if a smaller
+AVD disk size is configured. A separate step installs the system image and
+requires at least 8 GiB free in the AVD filesystem before the emulator action
+runs, failing immediately with a clear error if space is still insufficient.
+
 Failed tests fail the run. JUnit results, Maestro artifacts, emulator logcat, and
 run metadata are uploaded as `maestro-ui-results`, including after test failures,
 and retained for seven days. The emulator action shuts down its emulator.
@@ -342,9 +349,15 @@ The job timeout is 45 minutes; the emulator/test step is limited to 20 minutes.
 KVM permissions are configured only on the temporary GitHub-hosted runner.
 No Maestro Cloud, unit tests, or iOS tests are executed by this workflow.
 
-The first actual GitHub-hosted run must verify KVM, the API-35 emulator image, and
-the Linux Maestro/toolchain integration. API-35 execution is not yet verified;
-the existing local Windows checks used API 33.
+The first GitHub-hosted API-35 attempt reached emulator creation but failed at
+startup: about 3,066 MiB were free while the userdata check required 7,373 MiB.
+No Maestro flows ran in that attempt. A successful hosted rerun must still verify
+emulator boot and the Linux Maestro integration; the existing local Windows
+checks used API 33.
+
+The disk-space repair passed `actionlint` and 18 isolated CLI-fixture cases,
+including exact 8-GiB boundaries and SDK/disk-command failures. These checks do
+not replace the pending hosted rerun.
 
 ### Local runners
 
