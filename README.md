@@ -108,11 +108,14 @@ dotnet build src\MaestroMauiDemo\MaestroMauiDemo.csproj -f net10.0-android -c De
 ### iOS (on a Mac)
 
 ```bash
-dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj -f net10.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64
+dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj -f net10.0-ios -c Debug \
+  -p:MauiAppTargetFramework=net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
 ```
 
-Use `iossimulator-x64` instead on an Intel Mac. The command restores packages for
-the selected simulator runtime.
+Use `iossimulator-x64` instead on an Intel Mac. `MauiAppTargetFramework` limits
+the app's implicit restore to iOS without changing the Core project's target;
+otherwise restore also requires the Android and Mac Catalyst workloads. The
+command restores packages for the selected simulator runtime.
 
 ### Mac Catalyst (on a Mac)
 
