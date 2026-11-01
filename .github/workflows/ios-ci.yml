@@ -1,0 +1,75 @@
+name: iOS CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS simulator build and unit tests
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+        with:
+          global-json-file: global.json
+
+      - name: Run Core unit tests
+        id: unit-tests
+        run: >-
+          dotnet test tests/MaestroMauiDemo.UnitTests/MaestroMauiDemo.UnitTests.csproj
+          --configuration Release
+          --logger "trx;LogFileName=unit-tests.trx"
+          --results-directory "$RUNNER_TEMP/unit-tests"
+
+      - name: Upload unit-test report
+        if: ${{ !cancelled() && steps.unit-tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-unit-test-results
+          path: ${{ runner.temp }}/unit-tests/*.trx
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Check Xcode and architecture
+        run: |
+          set -euo pipefail
+          if [[ ! -d "$DEVELOPER_DIR" ]]; then
+            echo "::error::Xcode 27.1 is not installed at $DEVELOPER_DIR."
+            exit 1
+          fi
+          if [[ "$(uname -m)" != arm64 ]]; then
+            echo "::error::The iOS simulator build requires an Apple Silicon runner."
+            exit 1
+          fi
+          xcodebuild -version
+          xcrun --find simctl
+
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      - name: Build iOS simulator app
+        run: >-
+          dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj
+          --framework net10.0-ios
+          --configuration Debug
+          -p:RuntimeIdentifier=iossimulator-arm64
