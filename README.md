@@ -4,8 +4,8 @@
 It is the starting point for a blog series about automating .NET MAUI applications
 with Maestro on Android and iOS.
 
-The repository contains the application, plain .NET unit tests, and local Maestro
-UI flows shared by Android and iOS. No CI/CD workflows are included.
+The repository contains the application, plain .NET unit tests, local Maestro
+UI flows shared by Android and iOS, and platform-specific GitHub Actions workflows.
 
 ## Features
 
@@ -310,8 +310,28 @@ tags. The SDK is installed in the runner's temporary directory so workload
 installation does not need administrator privileges.
 
 This workflow does not deploy the app, start an emulator, or run Maestro/iOS/UI
-tests. The first actual GitHub-hosted run must verify the Ubuntu runner/toolchain
-combination after the workflow is committed and pushed.
+tests.
+
+## Pull-request checks for iOS
+
+[iOS CI](.github/workflows/ios-ci.yml) runs for pull requests targeting `main`
+on the Apple Silicon `xcode-27` GitHub-hosted image. Like the Android check, it
+runs the Core unit tests in Release, uploads their TRX report for seven days,
+and cancels older runs for the same PR. Its artifact is named
+`ios-unit-test-results` to avoid a collision with the Android report.
+
+The job selects Xcode 27.1, installs the MAUI iOS workload, and builds the app
+for `iossimulator-arm64` in Debug. It does not boot a simulator, run Maestro,
+sign a device build, or deploy an app. A simulator build does not require an
+Apple signing certificate or provisioning profile.
+
+The pinned .NET 10.0.403 workload set uses Microsoft.iOS 27.1 and requires
+Xcode 27.1. The `xcode-27` image is used because the standard `macos-26` image
+does not currently provide that Xcode version. If the SDK workload set or runner
+image changes, update the selected Xcode version accordingly. The first native
+GitHub-hosted iOS run has not yet been verified. macOS runner usage can consume
+more GitHub Actions minutes or incur different charges than Linux; check the
+current billing terms for your repository.
 
 ## Maestro UI tests
 
@@ -335,13 +355,6 @@ an API-35 Google APIs x86_64 emulator on Ubuntu 24.04, and runs all five existin
 flows with the project-evaluated app ID. Maestro 2.11.0 is pinned to the version
 validated locally; its ZIP checksum is verified. Actions use major-version tags.
 
-After building the APK, it uninstalls unused Android NDK packages with
-`sdkmanager` to reclaim space on the temporary runner. The emulator enforces at
-least a 6-GiB userdata partition plus a 20% disk-space reserve, even if a smaller
-AVD disk size is configured. A separate step installs the system image and
-requires at least 8 GiB free in the AVD filesystem before the emulator action
-runs, failing immediately with a clear error if space is still insufficient.
-
 Failed tests fail the run. JUnit results, Maestro artifacts, emulator logcat, and
 run metadata are uploaded as `maestro-ui-results`, including after test failures,
 and retained for seven days. The emulator action shuts down its emulator.
@@ -349,15 +362,29 @@ The job timeout is 45 minutes; the emulator/test step is limited to 20 minutes.
 KVM permissions are configured only on the temporary GitHub-hosted runner.
 No Maestro Cloud, unit tests, or iOS tests are executed by this workflow.
 
-The first GitHub-hosted API-35 attempt reached emulator creation but failed at
-startup: about 3,066 MiB were free while the userdata check required 7,373 MiB.
-No Maestro flows ran in that attempt. A successful hosted rerun must still verify
-emulator boot and the Linux Maestro integration; the existing local Windows
-checks used API 33.
+The maintainer has reported a successful hosted Android pipeline run. The local
+Windows verification used API 33 and is separate from the hosted API-35 run.
 
-The disk-space repair passed `actionlint` and 18 isolated CLI-fixture cases,
-including exact 8-GiB boundaries and SDK/disk-command failures. These checks do
-not replace the pending hosted rerun.
+### Manual GitHub Actions run (iOS)
+
+[iOS Maestro UI tests](.github/workflows/ios-ui-tests.yml) is also
+`workflow_dispatch`-only. Once the workflow is on the default branch, select
+**Actions > iOS Maestro UI tests > Run workflow** and choose the branch.
+
+It uses the `xcode-27` Apple Silicon runner, Xcode 27.1, Java 21, the MAUI iOS
+workload, and checksum-verified Maestro 2.12.0. Maestro 2.12.0 is used here
+because it adds support for Xcode 27; the Android workflow remains on 2.11.0.
+The job builds a fresh `iossimulator-arm64` Debug `.app`, checks its bundle ID,
+creates an iPhone 17 with the installed iOS 27.0 simulator runtime, installs the
+app, and runs all five shared flows.
+
+The job uploads `ios-maestro-ui-results` for seven days, including JUnit and
+Maestro artifacts when available, simulator diagnostics, and run metadata.
+Diagnostics are attempted after test failures, and cleanup attempts to shut down
+and delete only the simulator the job created. Simulator creation/boot and tests have separate
+timeouts. No Apple signing credentials, physical devices, or Maestro Cloud are
+used. The first hosted iOS run is still required to validate simulator boot,
+packaging, accessibility selectors, keyboard behavior, and the flows.
 
 ### Local runners
 
@@ -454,12 +481,17 @@ Validated on Windows with .NET SDK 10.0.403:
   Foundation stubs. Shell scripts use LF line endings enforced by repository
   attributes. These checks do not execute the native macOS Objective-C bridge,
   Xcode, or an iOS Simulator.
+- Both iOS workflows passed `actionlint`, except for the newer `xcode-27`
+  hosted label that the linter version does not yet recognize. Their shell
+  blocks passed syntax checks, and 23 mocked cases exercised build, simulator,
+  Maestro, diagnostics, and cleanup paths. The PR workflow's unit-test command
+  also passed all 69 tests and wrote a TRX report on Windows.
 
 Native Apple packaging/signing and Apple simulator/device behavior have not been
 validated in this environment. Shared iOS flows are provided but have not been
-executed on a simulator. Local runners do not provision AVDs. The Android PR
-workflow covers unit tests and compilation only; the separate Android Maestro
-workflow provisions its CI emulator and runs only when started manually.
+executed on a simulator. Local runners do not provision AVDs. Both PR workflows
+cover unit tests and compilation only; the separate platform-specific Maestro
+workflows run only when started manually.
 
 ## License
 
