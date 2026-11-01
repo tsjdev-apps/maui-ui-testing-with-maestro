@@ -1,0 +1,171 @@
+name: iOS Maestro UI tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maestro:
+    name: iOS Maestro suite
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      MAESTRO_CLI_NO_ANALYTICS: 'true'
+      MAESTRO_DISABLE_UPDATE_CHECK: 'true'
+      MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+        with:
+          global-json-file: global.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Check Xcode and architecture
+        run: |
+          set -euo pipefail
+          if [[ ! -d "$DEVELOPER_DIR" ]]; then
+            echo "::error::Xcode 27.1 is not installed at $DEVELOPER_DIR."
+            exit 1
+          fi
+          if [[ "$(uname -m)" != arm64 ]]; then
+            echo "::error::The iOS simulator build requires an Apple Silicon runner."
+            exit 1
+          fi
+          xcodebuild -version
+          xcrun --find simctl
+
+      - name: Install MAUI iOS workload
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      - name: Install Maestro 2.12.0
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/maestro.zip"
+          curl --fail --location --retry 3 \
+            https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.12.0/maestro.zip \
+            --output "$archive"
+          printf 'a6044a84542f522f434c5dc3d609e60c7446d423f3ed1b2ae513f5c48663ec5e  %s\n' "$archive" | shasum -a 256 --check
+          unzip -q "$archive" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/maestro/bin/maestro"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
+
+      - name: Build fresh simulator app
+        id: build
+        run: |
+          set -euo pipefail
+          build_dir="$RUNNER_TEMP/maestro-ios-app"
+          results_dir="$RUNNER_TEMP/maestro-ios-results"
+          mkdir -p "$build_dir" "$results_dir"
+          app_id=$(dotnet msbuild src/MaestroMauiDemo/MaestroMauiDemo.csproj \
+            -nologo -verbosity:quiet -p:TargetFramework=net10.0-ios \
+            -p:Configuration=Debug -p:RuntimeIdentifier=iossimulator-arm64 -getProperty:ApplicationId)
+          if [[ ! "$app_id" =~ ^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$ ]]; then
+            echo "::error::Could not evaluate a valid iOS ApplicationId: $app_id"
+            exit 1
+          fi
+          dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj \
+            --framework net10.0-ios --configuration Debug \
+            -p:RuntimeIdentifier=iossimulator-arm64 "-p:OutputPath=$build_dir/" \
+            --verbosity minimal
+          find "$build_dir" -type d -name '*.app' -prune -print0 > "$RUNNER_TEMP/maestro-ios-apps"
+          app_bundle=''
+          app_count=0
+          while IFS= read -r -d '' candidate; do
+            app_bundle=$candidate
+            app_count=$((app_count + 1))
+          done < "$RUNNER_TEMP/maestro-ios-apps"
+          if [[ "$app_count" -ne 1 ]]; then
+            echo "::error::Expected exactly one fresh simulator .app; found $app_count."
+            exit 1
+          fi
+          bundle_id=$(plutil -extract CFBundleIdentifier raw -o - "$app_bundle/Info.plist")
+          if [[ "$bundle_id" != "$app_id" ]]; then
+            echo "::error::Built bundle ID '$bundle_id' does not match ApplicationId '$app_id'."
+            exit 1
+          fi
+          printf 'APP_ID=%s\nAPP_BUNDLE=%s\n' "$app_id" "$app_bundle" >> "$GITHUB_ENV"
+          printf 'Maestro 2.12.0\niOS 27.0 / iPhone 17 / arm64\nAPP_ID=%s\n' "$app_id" > "$results_dir/run-info.txt"
+
+      - name: Create and boot iOS simulator
+        id: simulator
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available
+          device_id=$(xcrun simctl create "Maestro CI $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-17 \
+            com.apple.CoreSimulator.SimRuntime.iOS-27-0)
+          if [[ ! "$device_id" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]]; then
+            echo "::error::Simulator creation returned an invalid UDID: $device_id"
+            exit 1
+          fi
+          printf 'SIMULATOR_UDID=%s\n' "$device_id" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device_id"
+          xcrun simctl bootstatus "$device_id" -b
+
+      - name: Install app and run all five Maestro flows
+        id: ui-tests
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          xcrun simctl install "$SIMULATOR_UDID" "$APP_BUNDLE"
+          installed_app=$(xcrun simctl get_app_container "$SIMULATOR_UDID" "$APP_ID" app)
+          if [[ -z "$installed_app" ]]; then
+            echo "::error::Could not resolve the installed app container for '$APP_ID'."
+            exit 1
+          fi
+          maestro --device="$SIMULATOR_UDID" --platform=ios test \
+            --env "APP_ID=$APP_ID" --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-ios-results/report.xml" \
+            --test-output-dir "$RUNNER_TEMP/maestro-ios-results/artifacts" \
+            tests/MaestroMauiDemo.UITests
+
+      - name: Collect simulator diagnostics
+        if: ${{ !cancelled() && steps.simulator.outcome == 'success' }}
+        timeout-minutes: 2
+        run: |
+          if ! xcrun simctl io "$SIMULATOR_UDID" screenshot "$RUNNER_TEMP/maestro-ios-results/simulator.png"; then
+            echo "::warning::Could not capture the simulator screenshot."
+          fi
+          if ! xcrun simctl spawn "$SIMULATOR_UDID" log show --last 5m --style compact \
+            --predicate 'process == "MaestroMauiDemo"' > "$RUNNER_TEMP/maestro-ios-results/simulator.log"; then
+            echo "::warning::Could not collect the simulator app log."
+          fi
+
+      - name: Shut down and delete owned simulator
+        if: ${{ always() && env.SIMULATOR_UDID != '' }}
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          state=$(xcrun simctl list devices --json | jq -er \
+            --arg id "$SIMULATOR_UDID" '[.devices[][] | select(.udid == $id) | .state] | if length == 1 then .[0] else error("Owned simulator not found") end')
+          if [[ "$state" != Shutdown ]]; then
+            xcrun simctl shutdown "$SIMULATOR_UDID"
+          fi
+          xcrun simctl delete "$SIMULATOR_UDID"
+
+      - name: Upload Maestro reports and diagnostics
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-maestro-ui-results
+          path: ${{ runner.temp }}/maestro-ios-results/
+          if-no-files-found: error
+          retention-days: 7
