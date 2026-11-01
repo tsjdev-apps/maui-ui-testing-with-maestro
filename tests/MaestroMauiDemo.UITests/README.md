@@ -351,8 +351,13 @@ case "$(uname -m)" in
 esac
 
 dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj \
-  -f net10.0-ios -c Debug -p:RuntimeIdentifier="$RID"
+  -f net10.0-ios -c Debug -p:MauiAppTargetFramework=net10.0-ios \
+  -p:RuntimeIdentifier="$RID"
 ```
+
+The app-specific `MauiAppTargetFramework` property limits its implicit restore
+to iOS without retargeting the Core project or requiring Android and Mac Catalyst
+workloads. The local runner and both iOS workflows use the same restriction.
 
 After a successful build, evaluate the bundle ID, install the simulator app, and
 run the shared workspace:
