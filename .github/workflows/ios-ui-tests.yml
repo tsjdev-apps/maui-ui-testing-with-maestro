@@ -82,6 +82,7 @@ jobs:
           fi
           dotnet build src/MaestroMauiDemo/MaestroMauiDemo.csproj \
             --framework net10.0-ios --configuration Debug \
+            -p:MauiAppTargetFramework=net10.0-ios \
             -p:RuntimeIdentifier=iossimulator-arm64 "-p:OutputPath=$build_dir/" \
             --verbosity minimal
           find "$build_dir" -type d -name '*.app' -prune -print0 > "$RUNNER_TEMP/maestro-ios-apps"
