@@ -294,7 +294,8 @@ if [[ "$skip_build" == false ]]; then
     build_dir=$(capture_checked 'Could not create a fresh iOS build directory' mktemp -d "$results_dir/ios-build.XXXXXX")
     printf 'Building iOS Simulator Debug app (%s)...\n' "$runtime"
     run_checked 'iOS build failed; check compatible Xcode and the installed MAUI/iOS workload' dotnet build "$project" \
-        -f "$framework" -c Debug "-p:RuntimeIdentifier=$runtime" "-p:OutputPath=$build_dir" --verbosity minimal
+        -f "$framework" -c Debug "-p:MauiAppTargetFramework=$framework" \
+        "-p:RuntimeIdentifier=$runtime" "-p:OutputPath=$build_dir" --verbosity minimal
     app_candidates=$(capture_checked 'Could not create the app discovery file' mktemp "$results_dir/ios-apps.XXXXXX")
     run_checked 'Could not discover the fresh app bundle' find "$build_dir" -type d -name '*.app' -prune -print0 >"$app_candidates"
     app_bundle=''
