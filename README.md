@@ -323,18 +323,21 @@ runs the Core unit tests in Release, uploads their TRX report for seven days,
 and cancels older runs for the same PR. Its artifact is named
 `ios-unit-test-results` to avoid a collision with the Android report.
 
-The job selects Xcode 27.1, installs the MAUI iOS workload, and builds the app
-for `iossimulator-arm64` in Debug. It does not boot a simulator, run Maestro,
-sign a device build, or deploy an app. A simulator build does not require an
-Apple signing certificate or provisioning profile.
+The job selects Xcode 27.1, installs the MAUI iOS workload from the explicitly
+selected `10.0.403` workload set, and builds the app for `iossimulator-arm64`
+in Debug. It does not boot a simulator, run Maestro, sign a device build, or
+deploy an app. A simulator build does not require an Apple signing certificate
+or provisioning profile.
 
-The pinned .NET 10.0.403 workload set uses Microsoft.iOS 27.1 and requires
-Xcode 27.1. The `xcode-27` image is used because the standard `macos-26` image
-does not currently provide that Xcode version. If the SDK workload set or runner
-image changes, update the selected Xcode version accordingly. The first native
-GitHub-hosted iOS run has not yet been verified. macOS runner usage can consume
-more GitHub Actions minutes or incur different charges than Linux; check the
-current billing terms for your repository.
+The `10.0.403` workload set uses Microsoft.iOS 27.1 and requires Xcode 27.1.
+The SDK version in `global.json` alone does not pin the workload set; the
+workflow passes it explicitly to `dotnet workload install` and logs the
+installed workloads. The `xcode-27` image is used because the standard
+`macos-26` image does not currently provide that Xcode version. If the SDK
+workload set or runner image changes, update the selected Xcode version
+accordingly. A successful native GitHub-hosted iOS build is still needed.
+macOS runner usage can consume more GitHub Actions minutes or incur different
+charges than Linux; check the current billing terms for your repository.
 
 ## Maestro UI tests
 
