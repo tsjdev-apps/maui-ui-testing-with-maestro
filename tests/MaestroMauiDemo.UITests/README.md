@@ -49,8 +49,10 @@ simulator `.app`, creates an iPhone 17 with iOS 27.0, and runs the same five
 flows with Maestro 2.12.0. It uses Java 21 and does not require Apple device
 signing, a provisioning profile, or Maestro Cloud.
 
-Both use the Apple Silicon `xcode-27` hosted image and explicitly select
-Xcode 27.1 to match the iOS workload in the pinned .NET 10.0.403 workload set.
+Both use the Apple Silicon `xcode-27` hosted image, explicitly install the
+MAUI iOS workload from workload set `10.0.403`, and select Xcode 27.1 to
+match that set's iOS workload. Pinning the SDK in `global.json` alone does not
+pin its workload set; the installation step supplies the set version explicitly.
 Maestro 2.12.0 adds Xcode 27 support; the Android workflow remains on 2.11.0.
 The current image supplies the iOS 27.0 runtime and iPhone 17 device type.
 If the hosted image or workload set changes, check their compatibility together.
