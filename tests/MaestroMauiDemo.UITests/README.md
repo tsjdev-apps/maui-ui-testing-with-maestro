@@ -18,8 +18,8 @@ scheduled triggers. After the workflow is available on the default branch
 (`main`), select **Actions > Android Maestro UI tests > Run workflow**, choose
 the branch, and start the run.
 
-It installs checksum-verified Maestro 2.11.0 and builds a fresh, signed
-`android-x64` Debug APK with `EmbedAssembliesIntoApk=true`. It evaluates `APP_ID`
+It installs the shared, checksum-verified Maestro 2.12.1 release and builds a
+fresh, signed `android-x64` Debug APK with `EmbedAssembliesIntoApk=true`. It evaluates `APP_ID`
 from the project and installs the APK on an API-35 Google APIs x86_64 emulator
 (Pixel 5 profile). All five existing flows run unchanged; no local interactive
 runner is invoked and no extra test project or app package is added.
@@ -46,14 +46,16 @@ Core unit tests, uploads `ios-unit-test-results`, and builds a Debug
 `workflow_dispatch`. After the workflow is on `main`, use **Actions > iOS Maestro
 UI tests > Run workflow** and select a branch. It builds and validates a fresh
 simulator `.app`, creates an iPhone 17 with iOS 27.0, and runs the same five
-flows with Maestro 2.12.0. It uses Java 21 and does not require Apple device
-signing, a provisioning profile, or Maestro Cloud.
+flows with the same Maestro 2.12.1 release used by Android. It uses Java 21 and
+does not require Apple device signing, a provisioning profile, or Maestro Cloud.
 
 Both use the Apple Silicon `xcode-27` hosted image, explicitly install the
 MAUI iOS workload from workload set `10.0.403`, and select Xcode 27.1 to
 match that set's iOS workload. Pinning the SDK in `global.json` alone does not
 pin its workload set; the installation step supplies the set version explicitly.
-Maestro 2.12.0 adds Xcode 27 support; the Android workflow remains on 2.11.0.
+Both platform workflows read the Maestro version and archive checksum from
+[maestro-cli-release.txt](maestro-cli-release.txt), so they cannot drift apart.
+Update that shared pin when adopting a newer Maestro release.
 The current image supplies the iOS 27.0 runtime and iPhone 17 device type.
 If the hosted image or workload set changes, check their compatibility together.
 
@@ -457,8 +459,8 @@ See [reports and artifacts](https://docs.maestro.dev/maestro-flows/workspace-man
 
 ## Verified locally
 
-Native Maestro 2.11.0 on Windows, an Android API-33 x86_64 emulator, and .NET SDK
-10.0.403:
+An earlier local verification used Native Maestro 2.11.0 on Windows, an Android
+API-33 x86_64 emulator, and .NET SDK 10.0.403:
 
 - All five flows passed as a suite and independently in a different order.
 - Default runner execution built a fresh signed APK, installed it, and passed
