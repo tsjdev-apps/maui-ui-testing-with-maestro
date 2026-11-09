@@ -56,17 +56,23 @@ jobs:
           dotnet workload --version
           dotnet workload list
 
-      - name: Install Maestro 2.12.0
+      - name: Install pinned Maestro CLI
         run: |
           set -euo pipefail
+          IFS=' ' read -r maestro_version maestro_sha256 extra < tests/MaestroMauiDemo.UITests/maestro-cli-release.txt
+          if [[ ! "$maestro_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || ! "$maestro_sha256" =~ ^[[:xdigit:]]{64}$ || -n "$extra" ]]; then
+            echo "::error::Invalid Maestro CLI release pin."
+            exit 1
+          fi
           archive="$RUNNER_TEMP/maestro.zip"
           curl --fail --location --retry 3 \
-            https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.12.0/maestro.zip \
+            "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$maestro_version/maestro.zip" \
             --output "$archive"
-          printf 'a6044a84542f522f434c5dc3d609e60c7446d423f3ed1b2ae513f5c48663ec5e  %s\n' "$archive" | shasum -a 256 --check
+          printf '%s  %s\n' "$maestro_sha256" "$archive" | shasum -a 256 --check
           unzip -q "$archive" -d "$RUNNER_TEMP"
           chmod +x "$RUNNER_TEMP/maestro/bin/maestro"
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          printf 'MAESTRO_VERSION=%s\n' "$maestro_version" >> "$GITHUB_ENV"
           "$RUNNER_TEMP/maestro/bin/maestro" --version
 
       - name: Build fresh simulator app
@@ -105,7 +111,7 @@ jobs:
             exit 1
           fi
           printf 'APP_ID=%s\nAPP_BUNDLE=%s\n' "$app_id" "$app_bundle" >> "$GITHUB_ENV"
-          printf 'Maestro 2.12.0\niOS 27.0 / iPhone 17 / arm64\nAPP_ID=%s\n' "$app_id" > "$results_dir/run-info.txt"
+          printf 'Maestro %s\niOS 27.0 / iPhone 17 / arm64\nAPP_ID=%s\n' "$MAESTRO_VERSION" "$app_id" > "$results_dir/run-info.txt"
 
       - name: Create and boot iOS simulator
         id: simulator

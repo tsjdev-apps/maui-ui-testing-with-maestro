@@ -358,8 +358,10 @@ to test, and start the run.
 
 It builds a fresh signed `android-x64` Debug APK with embedded assemblies, starts
 an API-35 Google APIs x86_64 emulator on Ubuntu 24.04, and runs all five existing
-flows with the project-evaluated app ID. Maestro 2.11.0 is pinned to the version
-validated locally; its ZIP checksum is verified. Actions use major-version tags.
+flows with the project-evaluated app ID. Both platform workflows use the same
+Maestro CLI release and ZIP SHA-256 pin from
+[maestro-cli-release.txt](tests/MaestroMauiDemo.UITests/maestro-cli-release.txt),
+currently 2.12.1. Actions use major-version tags.
 
 Failed tests fail the run. JUnit results, Maestro artifacts, emulator logcat, and
 run metadata are uploaded as `maestro-ui-results`, including after test failures,
@@ -378,8 +380,7 @@ Windows verification used API 33 and is separate from the hosted API-35 run.
 **Actions > iOS Maestro UI tests > Run workflow** and choose the branch.
 
 It uses the `xcode-27` Apple Silicon runner, Xcode 27.1, Java 21, the MAUI iOS
-workload, and checksum-verified Maestro 2.12.0. Maestro 2.12.0 is used here
-because it adds support for Xcode 27; the Android workflow remains on 2.11.0.
+workload, and the same checksum-verified Maestro 2.12.1 release as Android.
 The job builds a fresh `iossimulator-arm64` Debug `.app`, checks its bundle ID,
 creates an iPhone 17 with the installed iOS 27.0 simulator runtime, installs the
 app, and runs all five shared flows.
@@ -462,8 +463,8 @@ Validated on Windows with .NET SDK 10.0.403:
   form after canceling, blank-title validation, trimming and saving, completion
   toggling, deletion, and the accessible empty state and recovery from it.
 
-- Native Maestro 2.11.0 passed all five Android flows on an API-33 x86_64 emulator,
-  both as a suite and independently in a different order.
+- An earlier local run with Maestro 2.11.0 passed all five Android flows on an
+  API-33 x86_64 emulator, both as a suite and independently in a different order.
 - The manual Android Maestro workflow passed `actionlint`, syntax checks for all
   six shell blocks, and nine isolated fresh-APK/error-handling cases. A new native
   Windows run built/installed an embedded-assembly x64 APK and produced five
